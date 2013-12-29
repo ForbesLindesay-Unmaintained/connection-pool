@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var inspect = require('util').inspect;
 var mysql = require('mysql');
 var Promise = require('promise');
 
@@ -58,6 +59,72 @@ describe('connection-pool', function () {
           assert(!provider.isLive(res[1]));
           assert(provider.unwrap(res[2]).connected);
           assert(provider.isLive(res[2]));
+        }).nodeify(done);
+      });
+    });
+  });
+  describe('strategies', function () {
+    describe('base', function () {
+      it('supports expand, use and contract', function (done) {
+        var sentinel = {};
+        var id = 0;
+        var provider = {
+          create: function () {
+            return {
+              sentinel: sentinel,
+              id: id++
+            };
+          }
+        };
+        var pool = new Base(provider);
+        /**
+         * Check the pool size is correct
+         *
+         * @param {Number} poolSize
+         * @param {Number} available
+         * @param {Number} queue
+         */
+        function poolStatus(poolSize, available, queue) {
+          assert(pool.poolSize === poolSize,
+                 'Expected pool size to be ' + inspect(poolSize) + ' but got ' + inspect(pool.poolSize));
+          assert(pool.pool.length === available,
+                 'Expected available size to be ' + inspect(available) + ' but got ' + inspect(pool.pool.length));
+          assert(pool.queue.length === queue,
+                 'Expected queue length to be ' + inspect(queue) + ' but got ' + inspect(pool.queue.length));
+        }
+        poolStatus(0, 0, 0);
+        pool.expand().then(function () {
+          poolStatus(1, 1, 0);
+          assert(id === 1);
+          assert(pool.pool[0].sentinel === sentinel);
+          assert(pool.pool[0].id === 0);
+          var next;
+          var final;
+          return pool.use(function (connection) {
+            assert(connection.sentinel === sentinel);
+            assert(connection.id === 0);
+            poolStatus(1, 0, 0);
+            next = pool.use(function (connection) {
+              assert(connection.sentinel === sentinel);
+              assert(connection.id === 0);
+              poolStatus(1, 0, 1);
+              pool.expand();
+              return final;
+            });
+            final = pool.use(function (connection) {
+              assert(connection.sentinel === sentinel);
+              assert(connection.id === 1);
+              poolStatus(2, 0, 0);
+            });
+            poolStatus(1, 0, 2);
+          }).then(function () {
+            return next;
+          });
+        }).then(function () {
+          return Promise.all(pool.shrink(), pool.shrink());
+        }).then(function () {
+          poolStatus(0, 0, 0);
+          assert(id === 2);
         }).nodeify(done);
       });
     });

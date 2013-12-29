@@ -1,7 +1,7 @@
 'use strict';
 
 var EventEmitter = require('events').EventEmitter;
-var Promsie = require('promise');
+var Promise = require('promise');
 
 module.exports = BaseStrategy;
 function BaseStrategy(provider) {
@@ -15,7 +15,7 @@ function BaseStrategy(provider) {
 BaseStrategy.prototype = Object.create(EventEmitter.prototype);
 BaseStrategy.prototype.constructor = BaseStrategy;
 
-BaseStrategy.prototype.provider_create = function () {
+BaseStrategy.prototype._provider_create = function () {
   try {
     return Promise.from(this.provider.create());
   } catch (ex) {
@@ -25,7 +25,7 @@ BaseStrategy.prototype.provider_create = function () {
   }
 };
 
-BaseStrategy.prototype.provider_destroy = function (c) {
+BaseStrategy.prototype._provider_destroy = function (c) {
   if (this.provider.destroy) {
     try {
       return Promise.from(this.provider.destroy(c));
@@ -39,7 +39,7 @@ BaseStrategy.prototype.provider_destroy = function (c) {
   }
 };
 
-BaseStrategy.prototype.provider_unwrap = function (c) {
+BaseStrategy.prototype._provider_unwrap = function (c) {
   if (this.provider.unwrap) {
     try {
       return Promise.from(this.provider.unwrap(c));
@@ -53,7 +53,7 @@ BaseStrategy.prototype.provider_unwrap = function (c) {
   }
 };
 
-BaseStrategy.prototype.provider_isLive = function (c) {
+BaseStrategy.prototype._provider_isLive = function (c) {
   if (this.provider.isLive) {
     try {
       return Promise.from(this.provider.isLive(c));
@@ -67,11 +67,46 @@ BaseStrategy.prototype.provider_isLive = function (c) {
   }
 };
 
+BaseStrategy.prototype._addConnection = function (connection) {
+  this.emit('add-connection');
+  if (this.queue.length) {
+    this.emit('queue-shift');
+    this.queue.shift()(connection);
+  } else {
+    this.pool.push(connection);
+  }
+};
+
+BaseStrategy.prototype._getConnection = function () {
+  this.emit('get-connection');
+  if (this.pool.length) {
+    var connection = this.pool.pop()
+    return this._provider_isLive(connection).then(function (isLive) {
+      if (isLive) {
+        return connection;
+      } else {
+        this.poolSize--;
+        this._provider_destroy(connection);
+        return this._getConnection();
+      }
+    }.bind(this), function (err) {
+      this.poolSize--;
+      this._provider_destroy(connection);
+      throw err;
+    }.bind(this));
+  } else {
+    return new Promise(function (resolve) {
+      this.emit('queue-push');
+      this.queue.push(resolve);
+    }.bind(this));
+  }
+};
+
 BaseStrategy.prototype.expand = function () {
   if (this.destroyed) return Promise.from(null);
   this.poolSize++;
-  return Promise.from(this.provider_create()).then(function (connection) {
-    this.addConnection(connection);
+  return Promise.from(this._provider_create()).then(function (connection) {
+    this._addConnection(connection);
   }.bind(this), function (err) {
     this.poolSize--;
     throw err;
@@ -79,9 +114,9 @@ BaseStrategy.prototype.expand = function () {
 };
 BaseStrategy.prototype.shrink = function () {
   this.poolSize--;
-  return this.getConnection().then(function (connection) {
-    this.provider_destroy(connection);
-  }, function (err) {
+  return this._getConnection().then(function (connection) {
+    this._provider_destroy(connection);
+  }.bind(this), function (err) {
     this.poolSize++;
     throw err;
   }.bind(this));
@@ -94,41 +129,6 @@ BaseStrategy.prototype.destroy = function () {
   }
 };
 
-BaseStrategy.prototype.addConnection = function (connection) {
-  this.emit('add-connection');
-  if (this.queue) {
-    this.emit('queue-shift');
-    this.queue.shift()(connection);
-  } else {
-    this.pool.push(connection);
-  }
-};
-
-BaseStrategy.prototype.getConnection = function () {
-  this.emit('get-connection');
-  if (this.pool.length) {
-    var connection = this.pool.pop()
-    return this.provider_isLive(connection).then(function (isLive) {
-      if (isLive) {
-        return connection;
-      } else {
-        this.poolSize--;
-        this.provider_destroy(connection);
-        return this.getConnection();
-      }
-    }.bind(this), function (err) {
-      this.poolSize--;
-      this.provider_destroy(connection);
-      throw err;
-    }.bind(this));
-  } else {
-    return new Promise(function (resolve) {
-      this.emit('queue-push');
-      this.queue.push(resolve);
-    }.bind(this));
-  }
-};
-
 BaseStrategy.prototype.use = function (fn, timeout) {
   if (this.destroyed) {
     var err = new Error('Cannot call `.use` on a destroyed connection pool');
@@ -136,21 +136,21 @@ BaseStrategy.prototype.use = function (fn, timeout) {
   }
   var self = this;
   var c;
-  return this.getConnection().then(function (connection) {
+  return this._getConnection().then(function (connection) {
     c = connection;
     self.emit('begin-use');
-    return self.provider_unwrap(c).then(fn);
+    return self._provider_unwrap(c).then(fn);
   }).then(function (res) {
     self.emit('end-use');
-    self.addConnection(c);
+    self._addConnection(c);
     return res;
   }, function (err) {
     self.emit('end-use');
     if (err.fatal) {
       self.poolSize--;
-      self.provider_destroy(c);
+      self._provider_destroy(c);
     } else {
-      self.addConnection(c);
+      self._addConnection(c);
     }
     throw err;
   });
