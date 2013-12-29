@@ -11,6 +11,25 @@ var Base = require('../strategies/base');
 var Simple = require('../strategies/simple');
 var Limit = require('../strategies/limit');
 
+function poolStatusAsserter(pool) {
+  /**
+   * Check the pool size is correct
+   *
+   * @param {Number} poolSize
+   * @param {Number} available
+   * @param {Number} queue
+   */
+  function poolStatus(poolSize, available, queue) {
+    assert(pool.poolSize === poolSize,
+           'Expected pool size to be ' + inspect(poolSize) + ' but got ' + inspect(pool.poolSize));
+    assert(pool.pool.length === available,
+           'Expected available size to be ' + inspect(available) + ' but got ' + inspect(pool.pool.length));
+    assert(pool.queue.length === queue,
+           'Expected queue length to be ' + inspect(queue) + ' but got ' + inspect(pool.queue.length));
+  }
+  return poolStatus;
+}
+
 describe('connection-pool', function () {
   describe('providers', function () {
     describe('mysql', function () {
@@ -77,21 +96,7 @@ describe('connection-pool', function () {
           }
         };
         var pool = new Base(provider);
-        /**
-         * Check the pool size is correct
-         *
-         * @param {Number} poolSize
-         * @param {Number} available
-         * @param {Number} queue
-         */
-        function poolStatus(poolSize, available, queue) {
-          assert(pool.poolSize === poolSize,
-                 'Expected pool size to be ' + inspect(poolSize) + ' but got ' + inspect(pool.poolSize));
-          assert(pool.pool.length === available,
-                 'Expected available size to be ' + inspect(available) + ' but got ' + inspect(pool.pool.length));
-          assert(pool.queue.length === queue,
-                 'Expected queue length to be ' + inspect(queue) + ' but got ' + inspect(pool.queue.length));
-        }
+        var poolStatus = poolStatusAsserter(pool);
         poolStatus(0, 0, 0);
         pool.expand().then(function () {
           poolStatus(1, 1, 0);
@@ -125,6 +130,39 @@ describe('connection-pool', function () {
         }).then(function () {
           poolStatus(0, 0, 0);
           assert(id === 2);
+        }).nodeify(done);
+      });
+    });
+    describe('simple', function () {
+      it('creates new connections whenever they are needed', function (done) {
+        var sentinel = {};
+        var id = 0;
+        var provider = {
+          create: function () {
+            return {
+              sentinel: sentinel,
+              id: id++
+            };
+          }
+        };
+        var pool = new Simple(provider);
+        var poolStatus = poolStatusAsserter(pool);
+        poolStatus(0, 0, 0);
+        pool.use(function (connection) {
+          poolStatus(1, 0, 0);
+          return pool.use(function (connection) {
+            poolStatus(2, 0, 0);
+          });
+        }).then(function () {
+          poolStatus(2, 2, 0);
+          return pool.use(function (connection) {
+            poolStatus(2, 1, 0);
+          });
+        }).then(function () {
+          poolStatus(2, 2, 0);
+          return Promise.all(pool.shrink(), pool.shrink());
+        }).then(function () {
+          poolStatus(0, 0, 0);
         }).nodeify(done);
       });
     });
