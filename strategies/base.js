@@ -68,7 +68,6 @@ BaseStrategy.prototype._provider_isLive = function (c) {
 };
 
 BaseStrategy.prototype._addConnection = function (connection) {
-  this.emit('add-connection');
   if (this.queue.length) {
     this.emit('queue-shift');
     this.queue.shift()(connection);
@@ -78,9 +77,8 @@ BaseStrategy.prototype._addConnection = function (connection) {
 };
 
 BaseStrategy.prototype._getConnection = function () {
-  this.emit('get-connection');
   if (this.pool.length) {
-    var connection = this.pool.pop()
+    var connection = this.pool.shift();
     return this._provider_isLive(connection).then(function (isLive) {
       if (isLive) {
         return connection;
@@ -104,6 +102,7 @@ BaseStrategy.prototype._getConnection = function () {
 
 BaseStrategy.prototype.expand = function () {
   if (this.destroyed) return Promise.from(null);
+  this.emit('expand');
   this.poolSize++;
   return Promise.from(this._provider_create()).then(function (connection) {
     this._addConnection(connection);
@@ -113,6 +112,7 @@ BaseStrategy.prototype.expand = function () {
   }.bind(this));
 };
 BaseStrategy.prototype.shrink = function () {
+  this.emit('shrink');
   this.poolSize--;
   return this._getConnection().then(function (connection) {
     this._provider_destroy(connection);
@@ -123,6 +123,7 @@ BaseStrategy.prototype.shrink = function () {
 };
 
 BaseStrategy.prototype.destroy = function () {
+  this.emit('destroy');
   this.destroyed = true;
   while(this.poolSize) {
     this.shrink();
@@ -134,18 +135,19 @@ BaseStrategy.prototype.use = function (fn, timeout) {
     var err = new Error('Cannot call `.use` on a destroyed connection pool');
     return new Promise(function (resolve, reject) { reject(err); });
   }
+  this.emit('use');
   var self = this;
   var c;
   return this._getConnection().then(function (connection) {
     c = connection;
-    self.emit('begin-use');
+    self.emit('begin-transaction');
     return self._provider_unwrap(c).then(fn);
   }).then(function (res) {
-    self.emit('end-use');
+    self.emit('end-transaction');
     self._addConnection(c);
     return res;
   }, function (err) {
-    self.emit('end-use');
+    self.emit('end-transaction');
     if (err.fatal) {
       self.poolSize--;
       self._provider_destroy(c);

@@ -43,18 +43,35 @@ function query(str) {
 
 ## Strategies
 
-Each strategy takes a `Provider` as it's first argument and an options object as its second argument.
+Each strategy takes a `Provider` as it's first argument and an options object as its second argument.  The provier must be an object with the following interface:
+
+ - `.create()` returns either a `Connection` or a `Promise.<Connection>`
+ - `.destroy(connection)` takes a `Connection` and ensures that it is properly disposed of
+ - `.isLive(connection)` takes a `Connection` and returns `true` if it is still usable and `false` if an error may have caused it to become stale.
+ - `.unwrap(connection)` takes a `Connection` and returns the true underlying conneciton/service to be passed to the `use` function.
+
+Only `.create()` is required.  By default, `.destroy(connectioin)` is a no-op, `.isLive(connection)` returns `true` and `.unwrap(connection)` returns the `connection`.
 
 ### Base
 
-The base strategy provides the following public methods:
+All other strategies inherit from `Base`.  The base strategy provides the following public methods:
 
  - `expand` - increases the number of connections available in the pool by one.
  - `shrink` - reduces the number of connections available in the pool by one.
  - `destroy` - removes all connections from the pool and prevents any more being opened.
  - `use(fn)` - take a connection out of the pool and give it to fn, wait for fn to complete, then return the connection to the pool.  It will return a `Promise` for the result of calling fn.
- 
- By default the base strategy is pretty useless as it starts with an empty pool.  You can call `expand` to add to the pool though, so could fairly easilly have a fixed sized pool.
+
+The base stratgy is also an [EventEmitter](http://nodejs.org/api/events.html) and provides the following events:
+
+ - `expand` - fired when `.expand()` is called
+ - `shrink` - fired when `.shrink()` is called
+ - `use` - fired when `.use()` is called
+ - `queue-push` - fired when a transaction is pushed into the queue
+ - `queue-shift` - fired when a transaction is taken off the queue
+ - `begin-transaction` - fired when a transaction starts
+ - `end-transaction` - fired when a transaction ends
+
+By default the base strategy is pretty useless as it starts with an empty pool.  You can call `expand` to add to the pool though, so could fairly easilly have a fixed sized pool.
 
 ```js
 // create a connection pool of size 2

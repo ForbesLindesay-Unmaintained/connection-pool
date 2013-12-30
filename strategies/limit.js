@@ -26,12 +26,12 @@ function LimitStrategy(provider, options) {
         timeout = setTimeout(tryShrink, idleTime);
       }
     }
-    this.on('begin-use', function () {
+    this.on('begin-transaction', function () {
       if (self.pool.length <= lowWaterMark) {
         clearTimeout(timeout);
       }
     });
-    this.on('end-use', function () {
+    this.on('end-transaction', function () {
       timeout = setTimeout(tryShrink, idleTime);
     });
   }
