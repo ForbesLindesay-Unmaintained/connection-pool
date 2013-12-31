@@ -166,5 +166,56 @@ describe('connection-pool', function () {
         }).nodeify(done);
       });
     });
+    describe('limit', function () {
+      it('supports min and max and idleTime', function (done) {
+        var sentinel = {};
+        var id = 0;
+        var provider = {
+          create: function () {
+            return {
+              sentinel: sentinel,
+              id: id++
+            };
+          }
+        };
+        var pool = new Limit(provider, {min: 1, max: 2, idleTime: '50ms'});
+        var poolStatus = poolStatusAsserter(pool);
+        poolStatus(1, 0, 0);
+        setTimeout(function () {
+          poolStatus(1, 1, 0);
+          pool.use(function (connection) {
+            poolStatus(1, 0, 0);
+            return pool.use(function (connection) {
+              poolStatus(2, 0, 0);
+            });
+          }).then(function () {
+            poolStatus(2, 2, 0);
+            var pending;
+            return pool.use(function (connection) {
+              poolStatus(2, 1, 0);
+              return pool.use(function (connection) {
+                poolStatus(2, 0, 0);
+                pending = pool.use(function (connection) {
+                  poolStatus(2, 0, 0);
+                });
+              });
+            }).then(function () { return pending; });
+          }).then(function () {
+            poolStatus(2, 2, 0);
+            return Promise.all(pool.shrink(), pool.shrink());
+          }).then(function () {
+            poolStatus(1, 1, 0);
+            return Promise.all(pool.expand(), pool.expand(), pool.expand());
+          }).then(function () {
+            poolStatus(2, 2, 0);
+            return new Promise(function (resolve) {
+              setTimeout(resolve, 100);
+            }).then(function () {
+              poolStatus(1, 1, 0);
+            });
+          }).nodeify(done);
+        }, 100);
+      });
+    });
   });
 });

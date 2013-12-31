@@ -8,7 +8,7 @@ function LimitStrategy(provider, options) {
   SimpleStrategy.call(this, provider);
   this.max = options.max || Infinity;
   this.min = options.min || 0;
-  for (var i = 0; i < min; i++) {
+  for (var i = 0; i < this.min; i++) {
     this.expand();
   }
   var idleTime = options.idleTime;
@@ -17,6 +17,7 @@ function LimitStrategy(provider, options) {
     var self = this;
 
     idleTime = ms(idleTime.toString());
+    var timeout;
 
     var tryShrink = function () {
       if (self.pool.length) {
