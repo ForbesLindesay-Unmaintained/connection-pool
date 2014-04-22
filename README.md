@@ -2,9 +2,9 @@
 
 Connection pooling logic for use with any service
 
-[![Build Status](https://travis-ci.org/ForbesLindesay/connection-pool.png?branch=master)](https://travis-ci.org/ForbesLindesay/connection-pool)
-[![Dependency Status](https://gemnasium.com/ForbesLindesay/connection-pool.png)](https://gemnasium.com/ForbesLindesay/connection-pool)
-[![NPM version](https://badge.fury.io/js/connection-pool.png)](http://badge.fury.io/js/connection-pool)
+[![Build Status](https://img.shields.io/travis/ForbesLindesay/connection-pool/master.svg)](https://travis-ci.org/ForbesLindesay/connection-pool)
+[![Dependency Status](https://img.shields.io/gemnasium/ForbesLindesay/connection-pool.svg)](https://gemnasium.com/ForbesLindesay/connection-pool)
+[![NPM version](https://img.shields.io/npm/v/connection-pool.svg)](http://badge.fury.io/js/connection-pool)
 
 ## Installation
 
