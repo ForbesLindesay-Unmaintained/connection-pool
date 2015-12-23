@@ -3,8 +3,8 @@
 Connection pooling logic for use with any service
 
 [![Build Status](https://img.shields.io/travis/ForbesLindesay/connection-pool/master.svg)](https://travis-ci.org/ForbesLindesay/connection-pool)
-[![Dependency Status](https://img.shields.io/gemnasium/ForbesLindesay/connection-pool.svg)](https://gemnasium.com/ForbesLindesay/connection-pool)
-[![NPM version](https://img.shields.io/npm/v/connection-pool.svg)](http://badge.fury.io/js/connection-pool)
+[![Dependency Status](https://img.shields.io/david/ForbesLindesay/connection-pool.svg)](https://david-dm.org/ForbesLindesay/connection-pool)
+[![NPM version](https://img.shields.io/npm/v/connection-pool.svg)](https://www.npmjs.com/package/connection-pool)
 
 ## Installation
 
