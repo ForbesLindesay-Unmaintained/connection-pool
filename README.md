@@ -1,5 +1,7 @@
 # connection-pool
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/ForbesLindesay/connection-pool.svg)](https://greenkeeper.io/)
+
 Connection pooling logic for use with any service
 
 [![Build Status](https://img.shields.io/travis/ForbesLindesay/connection-pool/master.svg)](https://travis-ci.org/ForbesLindesay/connection-pool)
